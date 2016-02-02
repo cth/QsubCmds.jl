@@ -4,10 +4,10 @@ ExtQueueSubmit.jl is package for Julia intented to make it easy to submit
 "shell scripts" represented as julia external commands, i.e., shell commands
 in backticks.  
 
-Currently, only Sun Grid Engine is support, but in the future other cluster
-managements systems may be supported.
+Currently, only Sun Grid Engine is supported, but in the future other cluster
+managements systems may be supported too.
 
-This package differs from ClusterManagers.jl in design. It is only intended 
+This package differs from [ClusterManagers.jl](https://github.com/JuliaParallel/ClusterManagers.jl) in design. It is only intended 
 to submit "shell script" commands to the cluster and does support native
 Julia constructs. It works by translating one or more external commands
 to a shell script suitable for the grid engine to run. It then launches
