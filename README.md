@@ -22,14 +22,14 @@ Considering the [pipeline example from the Julia manual](http://docs.julialang.o
 myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 ```
 
-This can be submitted run as a cluster job using to using:
+External commands like these, can via this package be submitted run as a cluster job using the `qsub` function,
 
 ```julia
 jobid=qsub(myjob)
 ```
 
 What happens is that a shell script will be created and launched using the cluster submission program, e.g., `qsub`. 
-This will immediately return the job-id. To wait for the job to finish, use `qwait`, e.g., 
+This will immediately return the `jobid`. To wait for the job to finish, use `qwait`, e.g., 
 
 ```julia
 qwait(jobid)
