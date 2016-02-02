@@ -7,16 +7,13 @@ in backticks.
 Currently, only Sun Grid Engine is supported, but in the future other cluster
 managements systems may be supported too.
 
-This package differs from [ClusterManagers.jl](https://github.com/JuliaParallel/ClusterManagers.jl).
-For now, this is a bare-bones naive approach. It is _only_ intended 
-to submit "shell script" commands to the cluster and does support native
-Julia constructs. It works by translating one or more external commands
-to a shell script suitable for the grid engine to run. 
-
-It then launches this script through the queue submission program, i.e., `qsub`. This has
-the advantage that it not necessary to have Julia available on cluster worker nodes, and in
-that avoids overhead related to starting up julia processes on the workers.
-
+For now, this is a naive bare-bones naive approach. Unlike
+ [ClusterManagers.jl](https://github.com/JuliaParallel/ClusterManagers.jl),
+ which supports full distributed julia code and relies on starting remote
+ workers, this approach it is _only_ intended 
+to submit Julia encapsulated _external commands_ (shell commands ) through the cluster manager directly
+ rather than through Julia workers. It works by translating the external commands
+to a shell script with suitable directives for the queue submission system. 
 
 ### Example usage:
 
