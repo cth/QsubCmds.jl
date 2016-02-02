@@ -1,6 +1,6 @@
 ### ClusterSubmitExternal.jl
 
-ExtQueueSubmit.jl is package for Julia intented to make it easy to submit 
+ClusterSubmitExternal.jl is package for Julia intented to make it easy to submit 
 "shell scripts" represented as julia external commands, i.e., shell commands
 in backticks.  
 
