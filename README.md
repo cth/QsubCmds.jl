@@ -7,7 +7,7 @@ in backticks.
 Currently, only Sun Grid Engine is supported, but in the future other cluster
 managements systems may be supported too.
 
-For now, this is a naive bare-bones naive approach. Unlike
+For now, this is a naive bare-bones approach. Unlike
  [ClusterManagers.jl](https://github.com/JuliaParallel/ClusterManagers.jl),
  which supports full distributed julia code and relies on starting remote
  workers, this approach it is _only_ intended 
