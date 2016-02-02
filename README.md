@@ -27,12 +27,12 @@ myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 This can be submitted run as a cluster job using to using:
 
 ```julia
-qsub(myjob)
+jobid=qsub(myjob)
 ```
 
 This will immediately return the job-id. To wait for the job to finish, use `qwait`, e.g., 
 
 ```julia
-qwait(myjob)
+qwait(jobid)
 ```
 
