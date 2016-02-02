@@ -28,14 +28,17 @@ External commands like these, can via this package be submitted run as a cluster
 jobid=qsub(myjob)
 ```
 
-What happens is that a shell script will be created and launched using the cluster submission program, e.g., `qsub`. 
-This will immediately return the `jobid`. To wait for the job to finish, use `qwait`, e.g., 
+This not block, but will immediately return the `jobid`. Usually, this is what is wanted since such jobs
+may be rather time-consuming. However, to wait for the job to finish, we can use `qwait` which blocks until 
+the job finished, e.g., 
 
 ```julia
 qwait(jobid)
 ```
 
-It is possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse arbitrary options to `qsub` like in the example below:
+Note that `qwait` currently does not provide any indication of whether the job was successfully run.
+
+It is also possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse arbitrary options to `qsub` like in the example below:
 
 ```julia
 jobid=qsub(myjob2, depends=[myjob1], options=["-l pe smp 4"])
