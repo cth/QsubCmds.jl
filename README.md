@@ -1,8 +1,7 @@
 ### ClusterSubmitExternal.jl
 
 ClusterSubmitExternal.jl is package for Julia intented to make it easy to submit 
-"shell scripts" represented as Julia external commands, i.e., shell commands
-in backticks.  
+"shell scripts" represented as Julia external commands on a HPC cluster.
 
 
 This is a naive bare-bones approach. Unlike
