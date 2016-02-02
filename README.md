@@ -11,8 +11,7 @@ For now, this is a naive bare-bones naive approach. Unlike
  [ClusterManagers.jl](https://github.com/JuliaParallel/ClusterManagers.jl),
  which supports full distributed julia code and relies on starting remote
  workers, this approach it is _only_ intended 
-to submit Julia encapsulated _external commands_ (shell commands ) through the cluster manager directly
- rather than through Julia workers. It works by translating the external commands
+to run Julia encapsulated _external commands_ (shell commands ) on a HPC cluster and does this through the cluster queue management software directly rather than through Julia workers. It works by translating the Julia encapsulated external commands
 to a shell script with suitable directives for the queue submission system. 
 
 ### Example usage:
