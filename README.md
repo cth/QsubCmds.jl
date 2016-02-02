@@ -38,7 +38,8 @@ the job finished, e.g.,
 qwait(jobid)
 ```
 
-Note that `qwait` currently does not provide any indication of whether the job was successfully run.
+Note that `qwait` currently does not provide any indication of whether the job was successfully run, and will, e.g.,
+not block nor complain if called on a non-existing jobid. 
 
 It is also possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse arbitrary options to `qsub` like in the example below:
 
