@@ -42,5 +42,5 @@ qwait(jobid)
 It is possible to define dependencies and to parse arbitrary options to `qsub`.
 
 ```julia
-jobid=qsub(myjob2, depends=myjob1, options=["-l pe smp 4"])
+jobid=qsub(myjob2, depends=[myjob1], options=["-l pe smp 4"])
 ```
