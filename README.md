@@ -1,7 +1,7 @@
 ### ClusterSubmitExternal.jl
 
 ClusterSubmitExternal.jl is package for Julia intented to make it easy to submit 
-"shell scripts" represented as julia external commands, i.e., shell commands
+"shell scripts" represented as Julia external commands, i.e., shell commands
 in backticks.  
 
 Currently, only Sun Grid Engine is supported, but in the future other cluster
