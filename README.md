@@ -35,7 +35,7 @@ This will immediately return the `jobid`. To wait for the job to finish, use `qw
 qwait(jobid)
 ```
 
-It is possible to define dependencies and to parse arbitrary options to `qsub`.
+It is possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse arbitrary options to `qsub` like in the example below:
 
 ```julia
 jobid=qsub(myjob2, depends=[myjob1], options=["-l pe smp 4"])
