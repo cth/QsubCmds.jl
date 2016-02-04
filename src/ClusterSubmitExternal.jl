@@ -1,7 +1,7 @@
 # Submission of external commands via Sun Grid Engine 
 # Christian Theil Have, 2016.
 
-module ExtQueueSubmit
+module ClusterSubmitExternal
 	export qsub, qwait
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
