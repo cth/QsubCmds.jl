@@ -1,4 +1,4 @@
-using ExternalQueueSubmit
+using ClusterSubmitExternal
 using Base.Test
 
 # write your own tests here
