@@ -12,8 +12,7 @@ to run Julia encapsulated _external commands_ (shell commands ) on a HPC cluster
 to a shell script with suitable directives for the queue submission system. 
 
 
-Currently, only Sun Grid Engine is supported, but in the future other cluster
-managements systems may be supported too.
+Currently, only Sun Grid Engine is supported, but in the future other cluster management systems may be supported too.
 
 ### Example usage:
 
@@ -54,8 +53,8 @@ The `qsub` function accepts a number of optional options:
 
  - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
  - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
- - `parallel\_environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
- - `vmem\_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
+ - `parallel_environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
+ - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
  - `cpus`::UInt64 How many CPUs to allocate for job. 
  - `depends`: An array of submitted jobs that must finished before present job will be run. 
  - `options`: An array of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
