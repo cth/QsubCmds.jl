@@ -36,6 +36,13 @@ the job finished, e.g.,
 qwait(job)
 ```
 
+The polling of the job-status will happen at increasing intervals which is incremented by one second
+for each polling. To poll in a non-blocking fashion you can use
+
+```julia
+isrunning(job)
+```
+
 #### Composing a series of commands
 
 A job can consist of one or more commands. Commands can be used stitched together using the `&` operator,e.g., 
@@ -53,7 +60,8 @@ The `qsub` function accepts a number of optional options:
 
  - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
  - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
- - `parallel_environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
+ - `environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
+ - `queue`::ASCIIString specify which queue to use.
  - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
  - `cpus`::UInt64 How many CPUs to allocate for job. 
  - `depends`: An array of submitted jobs that must finished before present job will be run. 
@@ -84,4 +92,15 @@ job=qsub(myjob3, depends=[myjob1,myjob2])
 ```
 
 This specificies that the two jobs `myjob1` and `myjob2` must finish, before `myjob3` is started on the cluster.
+
+
+#### Other functionality
+
+Finally, it is possible to get the `qstat` information on a submitted job (as a Dict):
+
+```julia
+qstat(myjob)
+```
+
+
 

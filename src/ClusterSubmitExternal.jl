@@ -2,29 +2,8 @@
 # Christian Theil Have, 2016.
 
 module ClusterSubmitExternal
-	export qsub, qwait, qerr, qout
-	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect,Base.AbstractCmd
-
-	macro R_str(s)
-	    s
-	end
-
-	"Conversion of `external` commands in backticks to shell runable commands"
-	to_shell(cmd::Cmd) = join(cmd.exec," ")
-	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
-	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ") 
-	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, "> ", cmd.handle.filename)
-
-
-	"Create an array of commands, where AndCmds are "
- 	collect_commands(cmd::Cmd) = [ cmd ]
- 	collect_commands(cmd::OrCmds) =  [ cmd ] 
- 	collect_commands(cmd::AndCmds) = [ collect_commands(cmd.a) ; collect_commands(cmd.b) ]
-
-	type QsubError <: Exception
-		var::ASCIIString
-	end
-	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
+	export qsub, qwait, qstat, stderr, stdout, isrunning, isfinished
+	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
 	type Job
 		id::ASCIIString
@@ -33,19 +12,45 @@ module ClusterSubmitExternal
 		stdout::Nullable{ASCIIString}
 	end
 
+	macro R_str(s)
+	    s
+	end
+
+	"version of isnull that works for all types and returns false unless it it Nullable()"
+	safeisnull(x) = try isnull(x) catch isnull(Nullable(x)) end
+
+	"Conversion of `external` commands in backticks to shell runable commands"
+	to_shell(cmd::Cmd) = join(cmd.exec," ")
+	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
+	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ") 
+	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, "> ", cmd.handle.filename)
+
+	"Create an array of commands, where AndCmds are "
+ 	collect_commands(cmd::Cmd) = [ to_shell(cmd) ]
+ 	collect_commands(cmd::OrCmds) =  [ to_shell(cmd) ] 
+ 	collect_commands(cmd::AndCmds) = [ collect_commands(cmd.a) ; collect_commands(cmd.b) ]
+
+	type QsubError <: Exception
+		var::ASCIIString
+	end
+	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
+
 	"Returns a list of available parallel environments"
 	parallel_environments() =  split(chomp(readall(`qconf -spl`)),"\n")
 
 	"""
 	Creates a script with directives for qsub and submits script to the a cluster queuing system.
 	"""
-	function qsub(commands::Array{Cmd} ; 
+	function qsub(commands::Array{ASCIIString,1} ; 
 		basedir=pwd(),
+		name=Nullable{ASCIIString}(),
 		stderr=Nullable{ASCIIString}(),
 		stdout=Nullable{ASCIIString}(),
-		parallel_environment=Nullable{ASCIIString}(),
+		environment=Nullable{ASCIIString}(),
+		queue=Nullable{ASCIIString}(),
 		vmem_mb=Nullable{UInt64}(),
 		cpus=Nullable{UInt64}(),
+		showscript=false,
 		depends=Array{Job,1}(),
 		options=Array{ASCIIString,1}())
 
@@ -54,29 +59,39 @@ module ClusterSubmitExternal
 			push!(options, "-hold_jid $depends_str")
 		end
 
-		if !isnull(cpus)
-			if isnull(parallel_environment)
-				parallel_environment=first(parallel_environments())
+
+		if !safeisnull(cpus)
+			if safeisnull(environment)
+				environment=first(parallel_environments())
 			end	
-			push!(options, "-pe $parallel_environment $cpus")  
+			push!(options, "-pe $environment $cpus")  
 		end
 
-		push!(options, isnull(stderr) ? "-e /dev/null" : "-e $stderr")
-		push!(options, isnull(stdout) ? "-o /dev/null" : "-o $stderr")
+		if !safeisnull(queue)
+			push!(options,"-q $queue")	
+		end
 
-		if !isnull(vmem_mb) 
+		push!(options, safeisnull(stderr) ? "-e /dev/null" : "-e $stderr")
+		push!(options, safeisnull(stdout) ? "-o /dev/null" : "-o $stderr")
+
+		if !safeisnull(vmem_mb)
 			push!(options, "-l h_vmem=$(vmem_mb)M") 
 		end
 
 		push!(options, "-cwd") # Always run relative to given directory
 
-		# Create a script
+
 		script=tempname()
+		push!(options, string("-N ", safeisnull(name) ? basename(script) : name)) 
+
+		# Create a script
 		open(script,"w") do file
 			write(file,string(R"#$ ","-S /bin/bash\n"))
 			write(file,map(x -> string(R"#$ ", x, "\n"), options))
-			write(file,map(x -> string(to_shell(x),"\n"),commands))
+			write(file,map(x -> string(x,"\n"),commands))
 		end 
+
+		#println(readall(script))
 
 		# Run script and get Job id
 		current_directory=pwd()
@@ -101,21 +116,31 @@ module ClusterSubmitExternal
 	"Return the filename of the file associated with the stdout output from job"
 	stdout(job::Job) = isnull(job.stdout) ? throw(QsubError(string("No stdout associated with job ", job.id))) : job.stdout
 
+
+	
 	function qstat(job::Job)
 		try
-			readall(`qstat -j $(job.id)`) 
+			str = readall(`qstat -j $(job.id)`) 
+			re = r"(\S+):\s+(\S+)$"
+			f(x) = ismatch(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
+			foldl(merge,Dict(),map(f,split(str,"\n")))
 		end
 	end
 
-#	function qstat(job::Job, key::ASCIIString)
-#		try
-#			lines = split(readall(`qstat -j $(job.id)`),"\n") 
-#			if ismatch(, output)
-#		end
-#	end
-#
 
-	# Wait for job to terminate
+	isrunning(job::Job) = try 
+		readall(pipeline(`qstat -j $(job.id)`,stderr=STDOUT))
+		true
+	catch
+		false
+	end
+
+	isfinished(x) = !isrunning(x)
+
+
+	"""
+	Wait for job to terminate (blocks). The polling interval increases linearly.
+	"""
 	function qwait(job::Job) 
 		try
 			backoff = 1
