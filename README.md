@@ -26,22 +26,63 @@ myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 External commands like these, can via this package be submitted run as a cluster job using the `qsub` function,
 
 ```julia
-jobid=qsub(myjob)
+job=qsub(myjob)
 ```
 
-This not block, but will immediately return the `jobid`. Usually, this is what is wanted since such jobs
+This wil not block, but will immediately return the `job`. Usually, this is what one would want since such jobs
 may be rather time-consuming. However, to wait for the job to finish, we can use `qwait` which blocks until 
 the job finished, e.g., 
 
 ```julia
-qwait(jobid)
+qwait(job)
 ```
 
-Note that `qwait` currently does not provide any indication of whether the job was successfully run, and will, e.g.,
-not block nor complain if called on a non-existing ´jobid`. 
+#### Composing a series of commands
 
-It is also possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse arbitrary options to `qsub` like in the example below:
+A job can consist of one or more commands. Commands can be used stitched together using the `&` operator,e.g., 
 
 ```julia
-jobid=qsub(myjob2, depends=[myjob1], options=["-l pe smp 4"])
+qsub(`echo hello` & `echo world`)
 ```
+
+The ampersand operator will, in this context, result in the two commands to be run in sequence, i.e, `echo world` will
+run after `echo hello` has finished. This is unlike the usual `&` semantics which puts commands in the background.
+ 
+#### Options 
+
+The `qsub` function accepts a number of optional options:
+
+ - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
+ - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
+ - `parallel\_environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
+ - `vmem\_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
+ - `cpus`::UInt64 How many CPUs to allocate for job. 
+ - `depends`: An array of submitted jobs that must finished before present job will be run. 
+ - `options`: An array of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
+
+For instance, if you want to specify a job that needs four processors in the parallel environment `smp`, then you
+could specify this as
+
+```julia
+job=qsub(`command`, cpus=4, parallel_environment="smp") 
+```
+
+or you could specify this through the extra `options`:
+
+```julia
+job=qsub(`command`, options=["-pe smp 4"]) 
+```
+
+It is also possible to mix and match both the standard (typed) options and the extra passthrough options, but currently
+no redundancy checks etc are performed. 
+
+#### Dependencies
+
+It is also possible to specify dependencies, i.e., jobs that must finish before another can commence, and to parse options to `qsub` like in the example below:
+
+```julia
+job=qsub(myjob3, depends=[myjob1,myjob2])
+```
+
+This specificies that the two jobs `myjob1` and `myjob2` must finish, before `myjob3` is started on the cluster.
+
