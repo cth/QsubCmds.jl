@@ -1,6 +1,6 @@
-### ClusterSubmitExternal.jl
+### ClusterSubmitExternal
 
-ClusterSubmitExternal.jl is package for Julia intented to make it easy to submit 
+ClusterSubmitExternal is package for Julia intented to make it easy to submit 
 "shell scripts" represented as Julia external commands on a HPC cluster.
 
 
@@ -95,6 +95,12 @@ This specificies that the two jobs `myjob1` and `myjob2` must finish, before `my
 
 
 #### Other functionality
+
+Submitted jobs can be deleted using `qdel`:
+
+```
+qdel(myjob)
+``` 
 
 Finally, it is possible to get the `qstat` information on a submitted job (as a Dict):
 

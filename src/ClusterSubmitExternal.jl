@@ -40,6 +40,27 @@ module ClusterSubmitExternal
 
 	"""
 	Creates a script with directives for qsub and submits script to the a cluster queuing system.
+
+	`qsub` is normally called with any `AbstractCmd` argument, which can be constructed using 
+	backtick notation., e.g., 
+
+	    qsub(cipeline(`echo hello`,`tr 'h' 'H'`) & `echo world`)
+
+	alternatively you can call it by suplying an array of commands as straight strings:
+
+	    qsub(["echo hello|tr 'h' 'H'", "echo world"])
+
+	The qsub command additionally takes a number of optional named arguments:
+
+	 - `name`: A user specified  `ASCIIString` identifier for the job
+	 - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
+	 - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
+	 - `environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
+	 - `queue`::ASCIIString specify which queue to use.
+	 - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
+	 - `cpus`::UInt64 How many CPUs to allocate for job. 
+	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
+	 - `options`: An Array  of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
 	"""
 	function qsub(commands::Array{ASCIIString,1} ; 
 		basedir=pwd(),
@@ -118,6 +139,7 @@ module ClusterSubmitExternal
 
 
 	
+	"`qstat(job::Job)` return job statistics for job as a `Dict`"
 	function qstat(job::Job)
 		try
 			str = readall(`qstat -j $(job.id)`) 
@@ -128,6 +150,7 @@ module ClusterSubmitExternal
 	end
 
 
+	"Returns true if `job` is running"
 	isrunning(job::Job) = try 
 		readall(pipeline(`qstat -j $(job.id)`,stderr=STDOUT))
 		true
@@ -137,11 +160,11 @@ module ClusterSubmitExternal
 
 	isfinished(x) = !isrunning(x)
 
-	"Delete a submitted job"
+	"`qdel(job)`: Delete a submitted `job`"
 	qdel(job::Job) = run(`qdel $(job.id)`)
 
 	"""
-	Wait for job to terminate (blocks). The polling interval increases linearly.
+	`qwait(job::Job)`: Waits for `job` to terminate (blocks). The polling interval increases linearly.
 	"""
 	function qwait(job::Job) 
 		try
