@@ -2,7 +2,7 @@
 # Christian Theil Have, 2016.
 
 module ClusterSubmitExternal
-	export qsub, qwait, qstat, stderr, stdout, isrunning, isfinished
+	export qsub, qwait, qstat, qdel, stderr, stdout, isrunning, isfinished
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
 	type Job
@@ -137,6 +137,8 @@ module ClusterSubmitExternal
 
 	isfinished(x) = !isrunning(x)
 
+	"Delete a submitted job"
+	qdel(job::Job) = run(`qdel $(job.id)`)
 
 	"""
 	Wait for job to terminate (blocks). The polling interval increases linearly.
