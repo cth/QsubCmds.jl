@@ -177,6 +177,6 @@ module ClusterSubmitExternal
 				sleep(backoff+=1)
 			end
 		end
-		println(string("job ", job.id, finished))
+		println(string("job ", job.id, "finished"))
 	end
 end
