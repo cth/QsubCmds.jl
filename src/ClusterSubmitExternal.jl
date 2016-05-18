@@ -92,8 +92,8 @@ module ClusterSubmitExternal
 			push!(options,"-q $queue")	
 		end
 
-		push!(options, safeisnull(stderr) ? "-e /dev/null" : "-e $stderr")
-		push!(options, safeisnull(stdout) ? "-o /dev/null" : "-o $stderr")
+		push!(options, safeisnull(stderr) ? "-e /dev/null" : string("-e ", stderr))
+		push!(options, safeisnull(stdout) ? "-o /dev/null" : string("-o ", stdout))
 
 		if !safeisnull(vmem_mb)
 			push!(options, "-l h_vmem=$(vmem_mb)M") 
