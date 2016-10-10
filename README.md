@@ -53,6 +53,7 @@ qsub(`echo hello` & `echo world`)
 
 The ampersand operator will, in this context, result in the two commands to be run in sequence, i.e, `echo world` will
 run after `echo hello` has finished. This is unlike the usual `&` semantics which puts commands in the background.
+
  
 #### Options 
 
@@ -93,6 +94,17 @@ job=qsub(myjob3, depends=[myjob1,myjob2])
 
 This specificies that the two jobs `myjob1` and `myjob2` must finish, before `myjob3` is started on the cluster.
 
+#### Throttling
+
+To limit how many jobs run concurrently, it is possible to use throttling, e.g., as in  
+
+```julia
+long_list_of_cmds = [ `doit 1`, ..., `doit 12345` ]
+qthrottle(10,long_list_of_commands) 
+```
+
+where only ten jobs from the commands are running at any given time. 
+This can be useful if jobs are IO intensive and access the same resource.
 
 #### Other functionality
 

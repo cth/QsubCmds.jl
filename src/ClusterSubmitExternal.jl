@@ -2,7 +2,7 @@
 # Christian Theil Have, 2016.
 
 module ClusterSubmitExternal
-	export qsub, qwait, qstat, qdel, stderr, stdout, isrunning, isfinished
+	export qsub, qwait, qstat, qdel, qthrottle, stderr, stdout, isrunning, isfinished
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
 	type Job
@@ -125,11 +125,25 @@ module ClusterSubmitExternal
 			Job(match(rx,output)[1], script, stderr, stdout)
 		else
 			throw(QsubError(output))
-		end	
+		end
 	end
 
 	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
 
+	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
+	# Does this by creating artificial dependencies between jobs 
+	function qthrottle(bottlenecksize::UInt64, commands ; rest...)
+		submitted_jobs = []
+		for i in 1:length(commands) 
+			println(submitted_jobs)
+			if i <= bottlenecksize
+				push!(submitted_jobs, qsub([commands[i]]; rest...))
+			else
+				deps = [ submitted_jobs[i-bottlenecksize] ]
+				push!(submitted_jobs, qsub([commands[i]]; depends=deps , rest...))
+			end
+		end
+	end
 
 	"Return the filename of the file associated with the stderr output from job"
 	stderr(job::Job) = isnull(job.stderr) ? throw(QsubError(string("No stderr associated with job ", job.id))) : job.stderr
@@ -137,8 +151,6 @@ module ClusterSubmitExternal
 	"Return the filename of the file associated with the stdout output from job"
 	stdout(job::Job) = isnull(job.stdout) ? throw(QsubError(string("No stdout associated with job ", job.id))) : job.stdout
 
-
-	
 	"`qstat(job::Job)` return job statistics for job as a `Dict`"
 	function qstat(job::Job)
 		try
