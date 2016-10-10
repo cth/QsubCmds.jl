@@ -1,6 +1,6 @@
-### ClusterSubmitExternal
+### QsubCmds
 
-ClusterSubmitExternal is package for Julia intented to make it easy to submit 
+QsubCmds is package for Julia intented to make it easy to submit 
 "shell scripts" represented as Julia external commands on a HPC cluster.
 
 
