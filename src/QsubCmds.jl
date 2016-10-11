@@ -36,7 +36,7 @@ module QsubCmds
 	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
 
 	"Returns a list of available parallel environments"
-	parallel_environments() =  split(chomp(readall(`qconf -spl`)),"\n")
+	parallel_environments() =  split(chomp(readstring(`qconf -spl`)),"\n")
 
 	"""
 	Creates a script with directives for qsub and submits script to the a cluster queuing system.
@@ -115,7 +115,7 @@ module QsubCmds
 		# Run script and get Job id
 		current_directory=pwd()
 		cd(basedir)
-		output=readall(`qsub $script`)
+		output=readstring(`qsub $script`)
 		cd(current_directory)
 
 		rx=r"Your job ([0-9]+) .* has been submitted"
@@ -128,16 +128,21 @@ module QsubCmds
 
 	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
 
+	# Why does this work?
+	#qsub(cmd::Array{Union{Cmd,OrCmds,AndCmds,CmdRedirect},1} ; rest...) = qsub(collect_commands(cmd) ; rest...)
+
+
 	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
 	# Does this by creating artificial dependencies between jobs 
-	function qthrottle(bottlenecksize::UInt64, commands ; rest...)
+	function qthrottle(bottlenecksize::UInt64, commands::Array ; rest...)
 		submitted_jobs = []
 		for i in 1:length(commands) 
+			cmd = (typeof(commands[i]) <: Base.AbstractCmd) ? commands[i] : [ commands[i] ]
 			if i <= bottlenecksize
-				push!(submitted_jobs, qsub([commands[i]]; rest...))
+				push!(submitted_jobs, qsub(cmd; rest...))
 			else
 				deps = [ submitted_jobs[i-bottlenecksize] ]
-				push!(submitted_jobs, qsub([commands[i]]; depends=deps , rest...))
+				push!(submitted_jobs, qsub(cmd; depends=deps , rest...))
 			end
 		end
 		submitted_jobs
@@ -152,7 +157,7 @@ module QsubCmds
 	"`qstat(job::Job)` return job statistics for job as a `Dict`"
 	function qstat(job::Job)
 		try
-			str = readall(`qstat -j $(job.id)`) 
+			str = readstring(`qstat -j $(job.id)`) 
 			re = r"(\S+):\s+(\S+)$"
 			f(x) = ismatch(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
 			foldl(merge,Dict(),map(f,split(str,"\n")))
@@ -162,7 +167,7 @@ module QsubCmds
 
 	"Returns true if `job` is running"
 	isrunning(job::Job) = try 
-		readall(pipeline(`qstat -j $(job.id)`,stderr=STDOUT))
+		readstring(pipeline(`qstat -j $(job.id)`,stderr=STDOUT))
 		true
 	catch
 		false
@@ -182,7 +187,7 @@ module QsubCmds
 			while true
 				# This return 1 if process does not exists (e.g. if finished)
 				# in which case run throw a ProcessExited(1) exception
-				readall(pipeline(`qstat -j $(job.id)`,stderr=STDOUT)) 
+				readstring(pipeline(`qstat -j $(job.id)`,stderr=STDOUT)) 
 				running = true
 				sleep(backoff+=1)
 			end
