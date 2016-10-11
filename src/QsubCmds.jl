@@ -6,10 +6,10 @@ module QsubCmds
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
 	type Job
-		id::ASCIIString
-		script::ASCIIString
-		stderr::Nullable{ASCIIString}
-		stdout::Nullable{ASCIIString}
+		id::String
+		script::String
+		stderr::Nullable{String}
+		stdout::Nullable{String}
 	end
 
 	macro R_str(s)
@@ -31,7 +31,7 @@ module QsubCmds
  	collect_commands(cmd::AndCmds) = [ collect_commands(cmd.a) ; collect_commands(cmd.b) ]
 
 	type QsubError <: Exception
-		var::ASCIIString
+		var::String
 	end
 	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
 
@@ -52,28 +52,28 @@ module QsubCmds
 
 	The qsub command additionally takes a number of optional named arguments:
 
-	 - `name`: A user specified  `ASCIIString` identifier for the job
-	 - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
-	 - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
-	 - `environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
-	 - `queue`::ASCIIString specify which queue to use.
+	 - `name`: A user specified  `String` identifier for the job
+	 - `stderr`::String points to a file where stderr from the job is logged. 
+	 - `stdout`::String points to a file where stdout from the job is logged. 
+	 - `environment`::String One of the available parallel environments, e.g., `smp`. 
+	 - `queue`::String specify which queue to use.
 	 - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
 	 - `cpus`::UInt64 How many CPUs to allocate for job. 
 	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
 	 - `options`: An Array  of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
 	"""
-	function qsub(commands::Array{ASCIIString,1} ; 
+	function qsub(commands::Array{String,1} ; 
 		basedir=pwd(),
-		name=Nullable{ASCIIString}(),
-		stderr=Nullable{ASCIIString}(),
-		stdout=Nullable{ASCIIString}(),
-		environment=Nullable{ASCIIString}(),
-		queue=Nullable{ASCIIString}(),
+		name=Nullable{String}(),
+		stderr=Nullable{String}(),
+		stdout=Nullable{String}(),
+		environment=Nullable{String}(),
+		queue=Nullable{String}(),
 		vmem_mb=Nullable{UInt64}(),
 		cpus=Nullable{UInt64}(),
 		showscript=false,
 		depends=Array{Job,1}(),
-		options=Array{ASCIIString,1}())
+		options=Array{String,1}())
 
 		if length(depends) > 0 
 			depends_str = join(map(x -> x.id, depends), ",")
@@ -112,8 +112,6 @@ module QsubCmds
 			write(file,map(x -> string(x,"\n"),commands))
 		end 
 
-		#println(readall(script))
-
 		# Run script and get Job id
 		current_directory=pwd()
 		cd(basedir)
@@ -135,7 +133,6 @@ module QsubCmds
 	function qthrottle(bottlenecksize::UInt64, commands ; rest...)
 		submitted_jobs = []
 		for i in 1:length(commands) 
-			println(submitted_jobs)
 			if i <= bottlenecksize
 				push!(submitted_jobs, qsub([commands[i]]; rest...))
 			else
@@ -143,6 +140,7 @@ module QsubCmds
 				push!(submitted_jobs, qsub([commands[i]]; depends=deps , rest...))
 			end
 		end
+		submitted_jobs
 	end
 
 	"Return the filename of the file associated with the stderr output from job"
