@@ -73,6 +73,7 @@ module QsubCmds
 		cpus=Nullable{UInt64}(),
 		showscript=false,
 		depends=Array{Job,1}(),
+		appendlog=false,
 		options=Array{String,1}())
 
 		if length(depends) > 0 
@@ -90,6 +91,12 @@ module QsubCmds
 
 		if !safeisnull(queue)
 			push!(options,"-q $queue")	
+		end
+
+		if !appendlog
+			for i in [ stderr stdout ]
+				!safeisnull(i) && isfile(i) && rm(i)
+			end
 		end
 
 		push!(options, safeisnull(stderr) ? "-e /dev/null" : string("-e ", stderr))
@@ -163,7 +170,6 @@ module QsubCmds
 			foldl(merge,Dict(),map(f,split(str,"\n")))
 		end
 	end
-
 
 	"Returns true if `job` is running"
 	isrunning(job::Job) = try 
