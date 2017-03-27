@@ -59,10 +59,11 @@ run after `echo hello` has finished. This is unlike the usual `&` semantics whic
 
 The `qsub` function accepts a number of optional options:
 
- - `stderr`::ASCIIString points to a file where stderr from the job is logged. 
- - `stdout`::ASCIIString points to a file where stdout from the job is logged. 
- - `environment`::ASCIIString One of the available parallel environments, e.g., `smp`. 
- - `queue`::ASCIIString specify which queue to use.
+ - `name`::String short name of job (to be used by qsub)
+ - `stderr`::String points to a file where stderr from the job is logged. 
+ - `stdout`::String points to a file where stdout from the job is logged. 
+ - `environment`::String One of the available parallel environments, e.g., `smp`. 
+ - `queue`::String specify which queue to use.
  - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
  - `cpus`::UInt64 How many CPUs to allocate for job. 
  - `depends`: An array of submitted jobs that must finished before present job will be run. 
