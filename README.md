@@ -64,6 +64,7 @@ The `qsub` function accepts a number of optional options:
  - `stdout`::String points to a file where stdout from the job is logged. 
  - `environment`::String One of the available parallel environments, e.g., `smp`. 
  - `queue`::String specify which queue to use.
+ - `vqueue`::VirtualQueue specify virtual queue to use fore throttling 
  - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
  - `cpus`::UInt64 How many CPUs to allocate for job. 
  - `depends`: An array of submitted jobs that must finished before present job will be run. 
@@ -95,17 +96,26 @@ job=qsub(myjob3, depends=[myjob1,myjob2])
 
 This specificies that the two jobs `myjob1` and `myjob2` must finish, before `myjob3` is started on the cluster.
 
-#### Throttling
+#### Virtual queues
 
-To limit how many jobs run concurrently, it is possible to use throttling, e.g., as in  
+It is possible limit how many jobs run concurrently using a virtual queue. 
+This can be useful if jobs are IO intensive and access the same resource.
+A virtual queue is created using the command
 
 ```julia
-long_list_of_cmds = [ `doit 1`, ..., `doit 12345` ]
-qthrottle(10,long_list_of_commands) 
+my_queue = virtual_queue(10)
 ```
 
-where only ten jobs from the commands are running at any given time. 
-This can be useful if jobs are IO intensive and access the same resource.
+where the argument is maximum number of jobs to run concurrently on this queue (10 in the example).
+To submit a job using the queue, you specify the virtual queue using the `vqueue` argument of `qsub`, e.g., 
+
+```julia
+qsub(`do something`, vqueue=my_queue)
+```
+
+and the job will be associated with the queue.
+
+
 
 #### Other functionality
 

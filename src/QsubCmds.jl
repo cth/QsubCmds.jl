@@ -2,7 +2,7 @@
 # Christian Theil Have, 2016.
 
 module QsubCmds
-	export qsub, qwait, qstat, qdel, qthrottle, stderr, stdout, isrunning, isfinished
+	export qsub, qwait, qstat, qdel, qthrottle, stderr, stdout, isrunning, isfinished, virtual_queue
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
 	type Job
@@ -11,6 +11,13 @@ module QsubCmds
 		stderr::Nullable{String}
 		stdout::Nullable{String}
 	end
+
+	type VirtualQueue
+		size::Int64
+		jobs::Array{Job,1}
+	end
+
+	virtual_queue(size) = VirtualQueue(size,Array{Job,1}())
 
 	macro R_str(s)
 	    s
@@ -44,7 +51,7 @@ module QsubCmds
 	`qsub` is normally called with any `AbstractCmd` argument, which can be constructed using 
 	backtick notation., e.g., 
 
-	    qsub(cipeline(`echo hello`,`tr 'h' 'H'`) & `echo world`)
+	    qsub(pipeline(`echo hello`,`tr 'h' 'H'`) & `echo world`)
 
 	alternatively you can call it by suplying an array of commands as straight strings:
 
@@ -71,27 +78,20 @@ module QsubCmds
 		queue=Nullable{String}(),
 		vmem_mb=Nullable{UInt64}(),
 		cpus=Nullable{UInt64}(),
+		vqueue=VirtualQueue(1,Array{Job,1}()),
 		showscript=false,
 		depends=Array{Job,1}(),
 		appendlog=false,
 		options=Array{String,1}())
 
-		if length(depends) > 0 
-			depends_str = join(map(x -> x.id, depends), ",")
-			push!(options, "-hold_jid $depends_str")
-		end
-
-
 		if !safeisnull(cpus)
 			if safeisnull(environment)
 				environment=first(parallel_environments())
-			end	
+			end
 			push!(options, "-pe $environment $cpus")  
 		end
 
-		if !safeisnull(queue)
-			push!(options,"-q $queue")	
-		end
+		safeisnull(queue) || push!(options,"-q $queue")	
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -102,15 +102,27 @@ module QsubCmds
 		push!(options, safeisnull(stderr) ? "-e /dev/null" : string("-e ", stderr))
 		push!(options, safeisnull(stdout) ? "-o /dev/null" : string("-o ", stdout))
 
-		if !safeisnull(vmem_mb)
-			push!(options, "-l h_vmem=$(vmem_mb)M") 
-		end
+		safeisnull(vmem_mb) || push!(options, "-l h_vmem=$(vmem_mb)M") 
 
 		push!(options, "-cwd") # Always run relative to given directory
 
 
+		# Add dependencies from specified vqueue if queue is full
+		if length(vqueue.jobs) >= vqueue.size 
+			println("Exceeded queue size")
+			push!(depends,vqueue.jobs[(1+length(vqueue.jobs))-vqueue.size])
+		end
+
+		if length(depends) > 0 
+			depends_str = join(map(x -> x.id, depends), ",")
+			push!(options, "-hold_jid $depends_str")
+		end
+
+
 		script=tempname()
 		push!(options, string("-N ", safeisnull(name) ? basename(script) : name)) 
+
+		println(options)
 
 		# Create a script
 		open(script,"w") do file
@@ -125,9 +137,11 @@ module QsubCmds
 		output=readstring(`qsub $script`)
 		cd(current_directory)
 
+
 		rx=r"Your job ([0-9]+) .* has been submitted"
 		if ismatch(rx, output)
-			Job(match(rx,output)[1], script, stderr, stdout)
+			push!(vqueue.jobs,Job(match(rx,output)[1], script, stderr, stdout))
+			return last(vqueue.jobs)
 		else
 			throw(QsubError(output))
 		end
@@ -135,13 +149,10 @@ module QsubCmds
 
 	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
 
-	# Why does this work?
-	#qsub(cmd::Array{Union{Cmd,OrCmds,AndCmds,CmdRedirect},1} ; rest...) = qsub(collect_commands(cmd) ; rest...)
-
-
 	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
 	# Does this by creating artificial dependencies between jobs 
 	function qthrottle(bottlenecksize::UInt64, commands::Array ; rest...)
+		warn("qthrottle is deprecated. Use a virtual queue instead")
 		submitted_jobs = []
 		for i in 1:length(commands) 
 			cmd = (typeof(commands[i]) <: Base.AbstractCmd) ? commands[i] : [ commands[i] ]
