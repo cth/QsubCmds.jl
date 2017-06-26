@@ -109,7 +109,6 @@ module QsubCmds
 
 		# Add dependencies from specified vqueue if queue is full
 		if length(vqueue.jobs) >= vqueue.size 
-			println("Exceeded queue size")
 			push!(depends,vqueue.jobs[(1+length(vqueue.jobs))-vqueue.size])
 		end
 
@@ -121,8 +120,6 @@ module QsubCmds
 
 		script=tempname()
 		push!(options, string("-N ", safeisnull(name) ? basename(script) : name)) 
-
-		println(options)
 
 		# Create a script
 		open(script,"w") do file
