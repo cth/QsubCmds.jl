@@ -29,8 +29,8 @@ module QsubCmds
 	"Conversion of `external` commands in backticks to shell runable commands"
 	to_shell(cmd::Cmd) = join(cmd.exec," ")
 	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
-	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ") 
-	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, "> ", cmd.handle.filename)
+	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ")
+	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, cmd.stream_no==0?"< ":"> ", cmd.handle.filename)
 
 	"Create an array of commands, where AndCmds are "
  	collect_commands(cmd::Cmd) = [ to_shell(cmd) ]
