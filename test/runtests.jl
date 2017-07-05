@@ -28,5 +28,5 @@ end
 
 @test QsubCmds.to_shell(`ls`) == "ls"
 @test QsubCmds.to_shell(pipeline(`a`,`b`)) == "a | b"
-#@test QsubCmds.to_shell(pipeline(`a`,"b")) == "a > b"
+@test QsubCmds.to_shell(pipeline(`a`,"b")) == "a 1> b"
 @test QsubCmds.to_shell(pipeline("a",`b`)) == "b 0< a"

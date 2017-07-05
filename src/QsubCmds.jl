@@ -12,16 +12,20 @@ module QsubCmds
 		stdout::Nullable{String}
 	end
 
-	type VirtualQueue
+    type VirtualQueue
 		size::Int64
 		jobs::Array{Job,1}
-	end
+        queues::Array{String,1}
+    end
 
-	virtual_queue(size) = VirtualQueue(size,Array{Job,1}())
+	virtual_queue(size) = VirtualQueue(size,Array{Job,1}(),[])
+	virtual_queue(size,queues::Array{String,1}) = VirtualQueue(size,Array{Job,1}(),queues)
 
 	macro R_str(s)
 	    s
 	end
+
+    queue_parameter(q) = (length(q.queues) > 0) ? string("-q ", q.queues[(length(q.jobs)+1) % length(q.queues)]) : ""
 
 	"version of isnull that works for all types and returns false unless it it Nullable()"
 	safeisnull(x) = try isnull(x) catch isnull(Nullable(x)) end
@@ -45,6 +49,10 @@ module QsubCmds
 	"Returns a list of available parallel environments"
 	parallel_environments() =  split(chomp(readstring(`qconf -spl`)),"\n")
 
+
+    "Returns a list of queues provided by the queuing system"
+    queues()  = error("TODO") 
+
 	"""
 	Creates a script with directives for qsub and submits script to the a cluster queuing system.
 
@@ -63,7 +71,7 @@ module QsubCmds
 	 - `stderr`::String points to a file where stderr from the job is logged. 
 	 - `stdout`::String points to a file where stdout from the job is logged. 
 	 - `environment`::String One of the available parallel environments, e.g., `smp`. 
-	 - `queue`::String specify which queue to use.
+	 - `queue`::Union{String,VirtualQueue} specify which queue to use.
 	 - `vmem_mb`::UInt64 Specify how many megabytes of virtual memory to allocate for the job.  
 	 - `cpus`::UInt64 How many CPUs to allocate for job. 
 	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
@@ -75,23 +83,14 @@ module QsubCmds
 		stderr=Nullable{String}(),
 		stdout=Nullable{String}(),
 		environment=Nullable{String}(),
-		queue=Nullable{String}(),
 		vmem_mb=Nullable{UInt64}(),
 		cpus=Nullable{UInt64}(),
-		vqueue=VirtualQueue(1,Array{Job,1}()),
-		showscript=false,
-		depends=Array{Job,1}(),
-		appendlog=false,
-		options=Array{String,1}())
+		queue=VirtualQueue(1,Array{Job,1}(),Array{String,1}()),
+        showscript=false,
+        depends=Array{Job,1}(),
+        appendlog=false,
+        options=Array{String,1}())
 
-		if !safeisnull(cpus)
-			if safeisnull(environment)
-				environment=first(parallel_environments())
-			end
-			push!(options, "-pe $environment $cpus")  
-		end
-
-		safeisnull(queue) || push!(options,"-q $queue")	
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -99,13 +98,21 @@ module QsubCmds
 			end
 		end
 
+
+        if !safeisnull(cpus)
+            if safeisnull(environment)
+                environment=first(parallel_environments())
+            end
+            push!(options, "-pe $environment $cpus")  
+        end
+
+
 		push!(options, safeisnull(stderr) ? "-e /dev/null" : string("-e ", stderr))
 		push!(options, safeisnull(stdout) ? "-o /dev/null" : string("-o ", stdout))
 
 		safeisnull(vmem_mb) || push!(options, "-l h_vmem=$(vmem_mb)M") 
 
 		push!(options, "-cwd") # Always run relative to given directory
-
 
 		# Add dependencies from specified vqueue if queue is full
 		if length(vqueue.jobs) >= vqueue.size 
@@ -117,7 +124,9 @@ module QsubCmds
 			push!(options, "-hold_jid $depends_str")
 		end
 
-
+  
+        push!(options,queue_parameter(queue))
+        
 		script=tempname()
 		push!(options, string("-N ", safeisnull(name) ? basename(script) : name)) 
 
@@ -133,7 +142,6 @@ module QsubCmds
 		cd(basedir)
 		output=readstring(`qsub $script`)
 		cd(current_directory)
-
 
 		rx=r"Your job ([0-9]+) .* has been submitted"
 		if ismatch(rx, output)
@@ -178,6 +186,14 @@ module QsubCmds
 			foldl(merge,Dict(),map(f,split(str,"\n")))
 		end
 	end
+
+    "`suspend a `Job` or `VirtualQueue`"
+    suspend(job::Job) = run(`qmod -sj $(job.id)`)
+    suspend(q::VirtualQueue) = suspend.(q.jobs)
+
+    "`unsuspend a `Job` or `VirtualQueue`"
+    unsuspend(job::Job) = run(`qmod -usj $(job.id)`) 
+    unsuspend(q::VirtualQueue) = unsuspend.(q.jobs)
 
 	"Returns true if `job` is running"
 	isrunning(job::Job) = try 
