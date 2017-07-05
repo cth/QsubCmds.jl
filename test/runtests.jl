@@ -30,3 +30,25 @@ end
 @test QsubCmds.to_shell(pipeline(`a`,`b`)) == "a | b"
 @test QsubCmds.to_shell(pipeline(`a`,"b")) == "a 1> b"
 @test QsubCmds.to_shell(pipeline("a",`b`)) == "b 0< a"
+
+# A virtual queue without explicit queue parameter should use the default queue:
+@test QsubCmds.queue_parameter(virtual_queue(42)) == ""
+
+# A virtual queue with one specific queue should always specify that queue:
+vq1 = virtual_queue(100, ["1"]) 
+@test queue_parameter(vq1) == "-q 1" 
+push!(vq1.jobs,QsubCmds.Job("1","","",""))
+@test QsubCmds.queue_parameter(vq1) == "-q 1" 
+
+# A virtual quque initialized with more than one queue should alternate between queues in round robin fashion: 
+vq2 = virtual_queue(100, ["1","2"]) 
+@test QsubCmds.queue_parameter(vq2) == "-q 1" 
+push!(vq2.jobs,QsubCmds.Job("1","","",""))
+@test QsubCmds.queue_parameter(vq2) == "-q 2" 
+push!(vq2.jobs,QsubCmds.Job("2","","",""))
+@test QsubCmds.queue_parameter(vq2) == "-q 1" 
+push!(vq2.jobs,QsubCmds.Job("3","","",""))
+@test QsubCmds.queue_parameter(vq2) == "-q 2" 
+
+@test QsubCmds.queue_parameter() == ""
+
