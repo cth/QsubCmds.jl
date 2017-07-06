@@ -95,8 +95,19 @@ job=qsub(myjob3, depends=[myjob1,myjob2])
 ```
 
 This specificies that the two jobs `myjob1` and `myjob2` must finish, before `myjob3` is started on the cluster.
+#### Queues
 
-#### Virtual queues
+Using the queue argument to `qsub` it possible to submit to a particular queue. 
+This may be a system queue (defined by the grid engine) or a virtual queue defined
+by the user (see later). 
+
+It is possible to get a list of the system queues using the command
+
+```julia
+list_queues() 
+```
+
+##### Virtual queues
 
 It is possible limit how many jobs run concurrently using a virtual queue. 
 This can be useful if jobs are IO intensive and access the same resource.
@@ -110,7 +121,7 @@ where the argument is maximum number of jobs to run concurrently on this queue (
 To submit a job using the queue, you specify the virtual queue using the `vqueue` argument of `qsub`, e.g., 
 
 ```julia
-qsub(`do something`, vqueue=my_queue)
+qsub(`do something`, queue=my_queue)
 ```
 
 and the job will be associated with the queue.
