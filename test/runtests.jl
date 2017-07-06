@@ -4,7 +4,6 @@ using Base.Test
 # write your own tests here
 @test 1 == 1
 
-
 macro with_qsub_env(expr::Expr)
     mktempdir() do tmpdir
         cd(tmpdir) do
@@ -36,19 +35,24 @@ end
 
 # A virtual queue with one specific queue should always specify that queue:
 vq1 = virtual_queue(100, ["1"]) 
-@test queue_parameter(vq1) == "-q 1" 
+@test QsubCmds.queue_parameter(vq1) == "-q 1" 
 push!(vq1.jobs,QsubCmds.Job("1","","",""))
 @test QsubCmds.queue_parameter(vq1) == "-q 1" 
 
 # A virtual quque initialized with more than one queue should alternate between queues in round robin fashion: 
 vq2 = virtual_queue(100, ["1","2"]) 
-@test QsubCmds.queue_parameter(vq2) == "-q 1" 
-push!(vq2.jobs,QsubCmds.Job("1","","",""))
-@test QsubCmds.queue_parameter(vq2) == "-q 2" 
-push!(vq2.jobs,QsubCmds.Job("2","","",""))
-@test QsubCmds.queue_parameter(vq2) == "-q 1" 
-push!(vq2.jobs,QsubCmds.Job("3","","",""))
-@test QsubCmds.queue_parameter(vq2) == "-q 2" 
 
-@test QsubCmds.queue_parameter() == ""
+observed_queues = []
+for i in 1:10
+    push!(vq2.jobs,QsubCmds.Job("1","","",""))
+    push!(observed_queues,QsubCmds.queue_parameter(vq2))
+end
+
+@test all(map(x->x∈["-q 1","-q 2"], observed_queues))
+
+for i in 2:10
+    @test observed_queues[i-1] != observed_queues[i] 
+end
+
+
 

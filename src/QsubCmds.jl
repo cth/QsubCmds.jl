@@ -25,7 +25,7 @@ module QsubCmds
 	    s
 	end
 
-    queue_parameter(q) = (length(q.queues) > 0) ? string("-q ", q.queues[(length(q.jobs)+1) % length(q.queues)]) : ""
+    queue_parameter(q) = (length(q.queues) > 0) ? string("-q ", q.queues[1+((length(q.jobs)+1) % length(q.queues))]) : ""
 
 	"version of isnull that works for all types and returns false unless it it Nullable()"
 	safeisnull(x) = try isnull(x) catch isnull(Nullable(x)) end
@@ -114,9 +114,9 @@ module QsubCmds
 
 		push!(options, "-cwd") # Always run relative to given directory
 
-		# Add dependencies from specified vqueue if queue is full
-		if length(vqueue.jobs) >= vqueue.size 
-			push!(depends,vqueue.jobs[(1+length(vqueue.jobs))-vqueue.size])
+		# Add dependencies from specified queue if queue is full
+		if length(queue.jobs) >= queue.size 
+			push!(depends,queue.jobs[(1+length(queue.jobs))-queue.size])
 		end
 
 		if length(depends) > 0 
@@ -145,8 +145,8 @@ module QsubCmds
 
 		rx=r"Your job ([0-9]+) .* has been submitted"
 		if ismatch(rx, output)
-			push!(vqueue.jobs,Job(match(rx,output)[1], script, stderr, stdout))
-			return last(vqueue.jobs)
+			push!(queue.jobs,Job(match(rx,output)[1], script, stderr, stdout))
+			return last(queue.jobs)
 		else
 			throw(QsubError(output))
 		end
