@@ -34,7 +34,7 @@ module QsubCmds
 	to_shell(cmd::Cmd) = join(cmd.exec," ")
 	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
 	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ")
-	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, cmd.stream_no==0?"< ":"> ", cmd.handle.filename)
+	to_shell(cmd::CmdRedirect) = string(to_shell(cmd.cmd), " ", cmd.stream_no, cmd.stream_no==0 ? "< " : "> ", cmd.handle.filename)
 
 	"Create an array of commands, where AndCmds are "
  	collect_commands(cmd::Cmd) = [ to_shell(cmd) ]
@@ -184,6 +184,7 @@ module QsubCmds
 			re = r"(\S+):\s+(\S+)$"
 			f(x) = ismatch(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
 			foldl(merge,Dict(),map(f,split(str,"\n")))
+		catch
 		end
 	end
 
@@ -221,6 +222,7 @@ module QsubCmds
 				running = true
 				sleep(backoff+=1)
 			end
+		catch
 		end
 		println(string("job ", job.id, "finished"))
 	end
