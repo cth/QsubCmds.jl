@@ -27,9 +27,6 @@ module QsubCmds
 
     queue_parameter(q) = (length(q.queues) > 0) ? string("-q ", q.queues[1+((length(q.jobs)+1) % length(q.queues))]) : ""
 
-	"version of isnull that works for all types and returns false unless it it Nullable()"
-	safeisnull(x) = try isnull(x) catch isnull(Nullable(x)) end
-
 	"Conversion of `external` commands in backticks to shell runable commands"
 	to_shell(cmd::Cmd) = join(cmd.exec," ")
 	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
@@ -52,6 +49,29 @@ module QsubCmds
 
     "Returns a list of queues provided by the queuing system"
     queues()  = error("TODO") 
+
+    
+    "Detect the type of cluster"
+    function detect_cluster_type()
+        qsub_binary = split(readstring(`whereis qsub`))[2]
+
+
+        if !isfile(qsub_binary)
+            throw("QsubCmds: Could not find the qsub command on the system!")
+        end
+
+        qsub_binary_strings = readstring(`strings $qsub_binary`)
+
+        if ismatch(r"libtorque", qsub_binary_strings)
+            :torque
+        elseif ismatch(r"gridengine", qsub_binary_strings)
+            :gridengine
+        else
+            throw("Unsupported type of cluster")
+        end
+    end
+
+
 
 	"""
 	Creates a script with directives for qsub and submits script to the a cluster queuing system.
@@ -77,40 +97,110 @@ module QsubCmds
 	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
 	 - `options`: An Array  of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
 	"""
-	function qsub(commands::Array{String,1} ; 
+	function qsub(commands::Array{String,1} ; rest...) 
+        cluster_type=detect_cluster_type()
+
+        if cluster_type == :torque
+            qsub_torque(commands ; rest...)
+        elseif cluster_type == :gridengine
+            qsub_gridengine(commands ; rest...)
+        end
+	end
+
+	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
+
+    function qsub_torque(commands::Array{String,1} ; 
 		basedir=pwd(),
-		name=Nullable{String}(),
-		stderr=Nullable{String}(),
-		stdout=Nullable{String}(),
-		environment=Nullable{String}(),
-		vmem_mb=Nullable{UInt64}(),
-		cpus=Nullable{UInt64}(),
+		name=nothing,
+		stderr=nothing,
+		stdout=nothing,
+		queue=VirtualQueue(1,Array{Job,1}(),Array{String,1}()),
+        showscript=false,
+        appendlog=false,
+        depends=Array{Job,1}(),
+        options=Array{String,1}())
+
+		if !appendlog
+			for i in [ stderr stdout ]
+                if i != nothing &&  isfile(i)
+                    rm(i)
+                end
+			end
+		end
+
+		push!(options, stderr==nothing ? "-e /dev/null" : string("-e ", stderr))
+		push!(options, stdout==nothing ? "-o /dev/null" : string("-o ", stdout))
+
+		insert!(commands, 1,"cd $basedir") # Always run relative to given directory
+
+		# Add dependencies from specified queue if queue is full
+		if length(queue.jobs) >= queue.size 
+			push!(depends,queue.jobs[(1+length(queue.jobs))-queue.size])
+		end
+
+		if length(depends) > 0 
+			depends_str = join(map(x -> x.id, depends), ",")
+			push!(options, "-hold_jid $depends_str")
+		end
+
+        #push!(options,queue_parameter(queue))
+        
+		script=tempname()
+		push!(options, string("-N ", name==nothing ? basename(script) : name)) 
+
+		# Create a script
+		open(script,"w") do file
+			write(file,string(R"#PBS ","-S /bin/bash\n"))
+			write(file,map(x -> string(R"#PBS ", x, "\n"), options))
+			write(file,map(x -> string(x,"\n"),commands))
+		end 
+
+		# Run script and get Job id
+		current_directory=pwd()
+		cd(basedir)
+		output=readstring(`qsub $script`)
+		cd(current_directory)
+
+		push!(queue.jobs,Job(chomp(output), script, stderr, stdout))
+		return last(queue.jobs)
+    end
+
+	function qsub_gridengine(commands::Array{String,1} ; 
+		basedir=pwd(),
+		name=nothing,
+		stderr=nothing,
+		stdout=nothing,
+		environment=nothing,
+		vmem_mb=nothing,
+		cpus=nothing, 
 		queue=VirtualQueue(1,Array{Job,1}(),Array{String,1}()),
         showscript=false,
         depends=Array{Job,1}(),
         appendlog=false,
         options=Array{String,1}())
 
-
 		if !appendlog
 			for i in [ stderr stdout ]
-				!safeisnull(i) && isfile(i) && rm(i)
+                if i != nothing &&  isfile(i)
+                    rm(i)
+                end
 			end
 		end
 
 
-        if !safeisnull(cpus)
-            if safeisnull(environment)
+        if cpus != nothing 
+            if environment != nothing
                 environment=first(parallel_environments())
             end
             push!(options, "-pe $environment $cpus")  
         end
 
+		push!(options, stderr==nothing ? "-e /dev/null" : string("-e ", stderr))
+		push!(options, stdout==nothing ? "-o /dev/null" : string("-o ", stdout))
 
-		push!(options, safeisnull(stderr) ? "-e /dev/null" : string("-e ", stderr))
-		push!(options, safeisnull(stdout) ? "-o /dev/null" : string("-o ", stdout))
-
-		safeisnull(vmem_mb) || push!(options, "-l h_vmem=$(vmem_mb)M") 
+		if vmem_mb == nothing 
+            push!(options, "-l h_vmem=$(vmem_mb)M") 
+        end
 
 		push!(options, "-cwd") # Always run relative to given directory
 
@@ -128,7 +218,7 @@ module QsubCmds
         push!(options,queue_parameter(queue))
         
 		script=tempname()
-		push!(options, string("-N ", safeisnull(name) ? basename(script) : name)) 
+		push!(options, string("-N ", name==nothing ? basename(script) : name)) 
 
 		# Create a script
 		open(script,"w") do file
@@ -150,9 +240,8 @@ module QsubCmds
 		else
 			throw(QsubError(output))
 		end
-	end
+    end
 
-	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
 
 	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
 	# Does this by creating artificial dependencies between jobs 
@@ -179,9 +268,15 @@ module QsubCmds
 
 	"`qstat(job::Job)` return job statistics for job as a `Dict`"
 	function qstat(job::Job)
+        cluster_type=detect_cluster_type()
 		try
-			str = readstring(`qstat -j $(job.id)`) 
-			re = r"(\S+):\s+(\S+)$"
+            if cluster_type == :gridengine
+			    str = readstring(`qstat -j $(job.id)`) 
+			    re = r"(\S+):\s+(\S+)$"
+            elseif cluster_type == :torque
+			    str = readstring(`qstat -f $(job.id)`) 
+			    re = r"\s+(\S+)\s+=\s+(\S+)$"
+            end
 			f(x) = ismatch(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
 			foldl(merge,Dict(),map(f,split(str,"\n")))
 		catch
