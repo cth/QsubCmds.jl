@@ -12,7 +12,9 @@ to run Julia encapsulated _external commands_ (shell commands ) on a HPC cluster
 to a shell script with suitable directives for the queue submission system. 
 
 
-Currently, only Sun Grid Engine is supported, but in the future other cluster management systems may be supported too.
+Currently, Sun Grid Engine is supported, torque is supported to a limited degree, but in the future other cluster management systems may be supported too.
+
+The library attempts to auto-detect which cluster management system is installed and will then try to use that. 
 
 ### Example usage:
 
@@ -43,18 +45,11 @@ for each polling. To poll in a non-blocking fashion you can use
 isrunning(job)
 ```
 
-#### Composing a series of commands
+### Job arrays
 
-A job can consist of one or more commands. Commands can be used stitched together using the `&` operator,e.g., 
+If `qsub` is called with an array of commands, it will create a job-array running all these jobs in parallel (to the extend possible) on the cluster.
+This is preferred to launching many qsub commands, e.g., from within a loop since it will reduce the load on the cluster management system.
 
-```julia
-qsub(`echo hello` & `echo world`)
-```
-
-The ampersand operator will, in this context, result in the two commands to be run in sequence, i.e, `echo world` will
-run after `echo hello` has finished. This is unlike the usual `&` semantics which puts commands in the background.
-
- 
 #### Options 
 
 The `qsub` function accepts a number of optional options:

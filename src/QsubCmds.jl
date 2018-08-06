@@ -38,10 +38,15 @@ module QsubCmds
  	collect_commands(cmd::OrCmds) =  [ to_shell(cmd) ] 
  	collect_commands(cmd::AndCmds) = [ collect_commands(cmd.a) ; collect_commands(cmd.b) ]
 
+    "Join an array of commands to a single command - useful for breaking up commands into several lines"
+    joincmds(cmds) = foldl((cmd1,cmd2)->`$cmd1 $cmd2`, ``, cmds)
+
 	type QsubError <: Exception
 		var::String
 	end
 	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
+
+
 
 	"Returns a list of available parallel environments"
 	parallel_environments() =  split(chomp(readstring(`qconf -spl`)),"\n")
@@ -97,19 +102,19 @@ module QsubCmds
 	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
 	 - `options`: An Array  of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
 	"""
-	function qsub(commands::Array{String,1} ; rest...) 
+	function qsub(commands::Array{T,1} ; rest...) where T<:Base.AbstractCmd
         cluster_type=detect_cluster_type()
 
         if cluster_type == :torque
-            qsub_torque(commands ; rest...)
+           qsub_torque(commands ; rest...) 
         elseif cluster_type == :gridengine
             qsub_gridengine(commands ; rest...)
         end
 	end
 
-	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = qsub(collect_commands(cmd) ; rest...)
+	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = first(qsub([cmd] ; rest...))
 
-    function qsub_torque(commands::Array{String,1} ; 
+    function qsub_torque(commands::Array{T,1} ; 
 		basedir=pwd(),
 		name=nothing,
 		stderr=nothing,
@@ -118,7 +123,7 @@ module QsubCmds
         showscript=false,
         appendlog=false,
         depends=Array{Job,1}(),
-        options=Array{String,1}())
+        options=Array{String,1}()) where T<:Base.AbstractCmd
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -152,7 +157,7 @@ module QsubCmds
 		open(script,"w") do file
 			write(file,string(R"#PBS ","-S /bin/bash\n"))
 			write(file,map(x -> string(R"#PBS ", x, "\n"), options))
-			write(file,map(x -> string(x,"\n"),commands))
+			write(file,map(x -> string(x,"\n"),map(to_shell,commands)))
 		end 
 
 		# Run script and get Job id
@@ -165,7 +170,7 @@ module QsubCmds
 		return last(queue.jobs)
     end
 
-	function qsub_gridengine(commands::Array{String,1} ; 
+	function qsub_gridengine(commands::Array{T,1} ; 
 		basedir=pwd(),
 		name=nothing,
 		stderr=nothing,
@@ -177,7 +182,7 @@ module QsubCmds
         showscript=false,
         depends=Array{Job,1}(),
         appendlog=false,
-        options=Array{String,1}())
+        options=Array{String,1}()) where T<:Base.AbstractCmd
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -198,7 +203,7 @@ module QsubCmds
 		push!(options, stderr==nothing ? "-e /dev/null" : string("-e ", stderr))
 		push!(options, stdout==nothing ? "-o /dev/null" : string("-o ", stdout))
 
-		if vmem_mb == nothing 
+		if vmem_mb != nothing 
             push!(options, "-l h_vmem=$(vmem_mb)M") 
         end
 
@@ -220,11 +225,16 @@ module QsubCmds
 		script=tempname()
 		push!(options, string("-N ", name==nothing ? basename(script) : name)) 
 
+
+
 		# Create a script
 		open(script,"w") do file
 			write(file,string(R"#$ ","-S /bin/bash\n"))
 			write(file,map(x -> string(R"#$ ", x, "\n"), options))
-			write(file,map(x -> string(x,"\n"),commands))
+			write(file,string(R"#$ ","-t 1-$(length(commands))\n"))
+            for i in 1:length(commands)
+			    write(file,string("[ \$SGE_TASK_ID -eq  $i ] && ", to_shell(commands[i]),"\n"))
+            end
 		end 
 
 		# Run script and get Job id
@@ -233,7 +243,7 @@ module QsubCmds
 		output=readstring(`qsub $script`)
 		cd(current_directory)
 
-		rx=r"Your job ([0-9]+) .* has been submitted"
+		rx=r"Your job-array ([0-9]+).* has been submitted"
 		if ismatch(rx, output)
 			push!(queue.jobs,Job(match(rx,output)[1], script, stderr, stdout))
 			return last(queue.jobs)
