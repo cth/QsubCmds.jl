@@ -28,6 +28,7 @@ module QsubCmds
     queue_parameter(q) = (length(q.queues) > 0) ? string("-q ", q.queues[1+((length(q.jobs)+1) % length(q.queues))]) : ""
 
 	"Conversion of `external` commands in backticks to shell runable commands"
+    to_shell(cmd::String) = cmd
 	to_shell(cmd::Cmd) = join(cmd.exec," ")
 	to_shell(cmd::OrCmds) = string(to_shell(cmd.a), " | ", to_shell(cmd.b)) 
 	to_shell(cmd::AndCmds) = string(to_shell(cmd.a), " & ", to_shell(cmd.b), " & ")
@@ -102,7 +103,7 @@ module QsubCmds
 	 - `depends`: An Array of submitted jobs that must finished before present job will be run. 
 	 - `options`: An Array  of strings that may contain extra options that will be passed unfiltered directly to the underlying qsub program.
 	"""
-	function qsub(commands::Array{T,1} ; rest...) where T<:Base.AbstractCmd
+	function qsub(commands::Array{T,1} ; rest...) where T<:Union{Base.AbstractCmd,String}
         cluster_type=detect_cluster_type()
 
         if cluster_type == :torque
@@ -112,7 +113,7 @@ module QsubCmds
         end
 	end
 
-	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect} ; rest...) = first(qsub([cmd] ; rest...))
+	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect,String} ; rest...) = qsub([cmd] ; rest...)
 
     function qsub_torque(commands::Array{T,1} ; 
 		basedir=pwd(),
@@ -123,7 +124,7 @@ module QsubCmds
         showscript=false,
         appendlog=false,
         depends=Array{Job,1}(),
-        options=Array{String,1}()) where T<:Base.AbstractCmd
+        options=Array{String,1}()) where T<:Union{Base.AbstractCmd,String}
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -182,7 +183,7 @@ module QsubCmds
         showscript=false,
         depends=Array{Job,1}(),
         appendlog=false,
-        options=Array{String,1}()) where T<:Base.AbstractCmd
+        options=Array{String,1}()) where T<:Union{Base.AbstractCmd,String}
 
 		if !appendlog
 			for i in [ stderr stdout ]

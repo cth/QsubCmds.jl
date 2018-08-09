@@ -1,7 +1,7 @@
 ### QsubCmds
 
 QsubCmds is package for Julia intented to make it easy to submit 
-"shell scripts" represented as Julia external commands on a HPC cluster.
+"shell scripts" represented as either Julia external or string encapsulated commands on a HPC cluster.
 
 
 This is a naive bare-bones approach. Unlike
@@ -10,6 +10,8 @@ This is a naive bare-bones approach. Unlike
  workers, this approach it is _only_ intended 
 to run Julia encapsulated _external commands_ (shell commands ) on a HPC cluster and does this through the cluster queue management software directly rather than through Julia workers. It works by translating the Julia encapsulated external commands
 to a shell script with suitable directives for the queue submission system. 
+See the blogpost [Shelling out sucks](https://julialang.org/blog/2012/03/shelling-out-sucks) to understand the motivation of Julias builtin shell commands.
+Since, this approach is going to "shelling out" in the qsub process anyway, it is also possible to provide commands as plain strings (no meta-character brittleness protection provided). 
 
 
 Currently, Sun Grid Engine is supported, torque is supported to a limited degree, but in the future other cluster management systems may be supported too.
@@ -24,11 +26,16 @@ Considering the [pipeline example from the Julia manual](http://docs.julialang.o
 myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 ```
 
+Julia shell commands will be compiled into suitable shell script strings handling escaping in a sensible way. 
+
+
 External commands like these, can via this package be submitted run as a cluster job using the `qsub` function,
 
 ```julia
 job=qsub(myjob)
 ```
+
+The `qsub` command is also capable of taking `String`s or an Array (any mix of strings/T<:AbstractCmd} which will launch a job-array rather than just a single job.
 
 This wil not block, but will immediately return the `job`. Usually, this is what one would want since such jobs
 may be rather time-consuming. However, to wait for the job to finish, we can use `qwait` which blocks until 
@@ -44,6 +51,7 @@ for each polling. To poll in a non-blocking fashion you can use
 ```julia
 isrunning(job)
 ```
+
 
 ### Job arrays
 
