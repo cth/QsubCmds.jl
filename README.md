@@ -11,33 +11,38 @@ This is a naive bare-bones approach. Unlike
 to run Julia encapsulated _external commands_ (shell commands ) on a HPC cluster and does this through the cluster queue management software directly rather than through Julia workers. It works by translating the Julia encapsulated external commands
 to a shell script with suitable directives for the queue submission system. 
 See the blogpost [Shelling out sucks](https://julialang.org/blog/2012/03/shelling-out-sucks) to understand the motivation of Julias builtin shell commands.
-Since, this approach is going to "shelling out" in the qsub process anyway, it is also possible to provide commands as plain strings (no meta-character brittleness protection provided). 
+Since, the QsubCmds approach is going to "shelling out" in the qsub process anyway, it is also possible to provide commands as plain strings (warning: no meta-character brittleness protection provided). 
 
-
+The library attempts to auto-detect which cluster management system is installed by probing the qsub command.  
 Currently, Sun Grid Engine is supported, torque is supported to a limited degree, but in the future other cluster management systems may be supported too.
-
-The library attempts to auto-detect which cluster management system is installed and will then try to use that. 
 
 ### Example usage:
 
-Considering the [pipeline example from the Julia manual](http://docs.julialang.org/en/release-0.4/manual/running-external-programs/#pipelines)
+A simple julia external command is written in back-tick notation but provides possibility of interpolation, e.g., 
+
+```julia
+myfile="my file.txt"
+myjob=`rm $myfile`
+```
+
+Commands be strung together using pipelines, e.g.,  as in the [pipeline example from the Julia manual](http://docs.julialang.org/en/release-0.4/manual/running-external-programs/#pipelines)
 
 ```julia
 myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 ```
 
-Julia shell commands will be compiled into suitable shell script strings handling escaping in a sensible way. 
+Julia external commands will be compiled into suitable shell script strings by QsubCmds while handling escaping of interpolated variables in a sensible way. 
+Such commands can via this package be submitted run as a cluster job using the `qsub` function,
 
-
-External commands like these, can via this package be submitted run as a cluster job using the `qsub` function,
 
 ```julia
 job=qsub(myjob)
 ```
 
-The `qsub` command is also capable of taking `String`s or an Array (any mix of strings/T<:AbstractCmd} which will launch a job-array rather than just a single job.
+The `qsub` command is also capable of raw taking strings (no meta-character or interpolation escaping).
+Several commmands can be provided in an Array in which case each command will be launched in parallel using a cluster engine job-array. 
 
-This wil not block, but will immediately return the `job`. Usually, this is what one would want since such jobs
+The `qsub` function not block, but will immediately return the `job`. Usually, this is what one would want since such jobs
 may be rather time-consuming. However, to wait for the job to finish, we can use `qwait` which blocks until 
 the job finished, e.g., 
 
