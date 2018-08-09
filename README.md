@@ -31,8 +31,14 @@ Commands be strung together using pipelines, e.g.,  as in the [pipeline example 
 myjob=pipeline(`do_work`, stdout=pipeline(`sort`, "out.txt"), stderr="errs.txt")
 ```
 
-Julia external commands will be compiled into suitable shell script strings by QsubCmds while handling escaping of interpolated variables in a sensible way. 
-Such commands can via this package be submitted run as a cluster job using the `qsub` function,
+Julia external commands will be compiled into suitable shell script strings by QsubCmds while handling escaping of interpolated variables in a sensible way. The `to\_shell` method
+in QsubCmds handles the translation, e.g., 
+
+```julia
+QsubCmds.to_shell(my_job) #> "do_work | sort 1> out.txt 2> errs.txt" 
+```
+
+The commands can via this package be submitted run as a cluster job using the `qsub` function,
 
 
 ```julia
