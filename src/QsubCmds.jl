@@ -2,21 +2,23 @@
 # Christian Theil Have, 2016.
 
 module QsubCmds
-	export qsub, qwait, qstat, qdel, qthrottle, stderr, stdout, isrunning, isfinished, virtual_queue
+	export qsub, qwait, qstat, qdel, qthrottle, isrunning, isfinished, virtual_queue
 	import Base.Cmd,Base.OrCmds,Base.AndCmds,Base.CmdRedirect
 
-	type Job
+	mutable struct Job
 		id::String
 		script::String
-		stderr::Nullable{String}
-		stdout::Nullable{String}
+		stderr::String
+		stdout::String
 	end
 
-    type VirtualQueue
+    mutable struct VirtualQueue
 		size::Int64
 		jobs::Array{Job,1}
         queues::Array{String,1}
     end
+
+    println("version 1")
 
 	virtual_queue(size) = VirtualQueue(size,Array{Job,1}(),[])
 	virtual_queue(size,queues::Array{String,1}) = VirtualQueue(size,Array{Job,1}(),queues)
@@ -42,7 +44,7 @@ module QsubCmds
     "Join an array of commands to a single command - useful for breaking up commands into several lines"
     joincmds(cmds) = foldl((cmd1,cmd2)->`$cmd1 $cmd2`, ``, cmds)
 
-	type QsubError <: Exception
+	mutable struct QsubError <: Exception
 		var::String
 	end
 	Base.showerror(io::IO, e::QsubError) = print(io, e.var);
@@ -50,7 +52,7 @@ module QsubCmds
 
 
 	"Returns a list of available parallel environments"
-	parallel_environments() =  split(chomp(readstring(`qconf -spl`)),"\n")
+	parallel_environments() =  split(chomp(read(`qconf -spl`,String)),"\n")
 
 
     "Returns a list of queues provided by the queuing system"
@@ -59,18 +61,18 @@ module QsubCmds
     
     "Detect the type of cluster"
     function detect_cluster_type()
-        qsub_binary = split(readstring(`whereis qsub`))[2]
+        qsub_binary = split(read(`whereis qsub`,String))[2]
 
 
         if !isfile(qsub_binary)
             throw("QsubCmds: Could not find the qsub command on the system!")
         end
 
-        qsub_binary_strings = readstring(`strings $qsub_binary`)
+        qsub_binary_strings = read(`strings $qsub_binary`,String)
 
-        if ismatch(r"libtorque", qsub_binary_strings)
+        if occursin(r"libtorque", qsub_binary_strings)
             :torque
-        elseif ismatch(r"gridengine", qsub_binary_strings)
+        elseif occursin(r"gridengine", qsub_binary_strings)
             :gridengine
         else
             throw("Unsupported type of cluster")
@@ -106,6 +108,8 @@ module QsubCmds
 	function qsub(commands::Array{T,1} ; rest...) where T<:Union{Base.AbstractCmd,String}
         cluster_type=detect_cluster_type()
 
+        commands = map(to_shell,commands)
+
         if cluster_type == :torque
            qsub_torque(commands ; rest...) 
         elseif cluster_type == :gridengine
@@ -115,16 +119,16 @@ module QsubCmds
 
 	qsub(cmd::Union{Cmd,OrCmds,AndCmds,CmdRedirect,String} ; rest...) = qsub([cmd] ; rest...)
 
-    function qsub_torque(commands::Array{T,1} ; 
+    function qsub_torque(commands::Array{String,1} ; 
 		basedir=pwd(),
 		name=nothing,
-		stderr=nothing,
-		stdout=nothing,
+		stderr="/dev/null",
+		stdout="/dev/null",
 		queue=VirtualQueue(1,Array{Job,1}(),Array{String,1}()),
         showscript=false,
         appendlog=false,
         depends=Array{Job,1}(),
-        options=Array{String,1}()) where T<:Union{Base.AbstractCmd,String}
+        options=Array{String,1}()) 
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -136,6 +140,8 @@ module QsubCmds
 
 		push!(options, stderr==nothing ? "-e /dev/null" : string("-e ", stderr))
 		push!(options, stdout==nothing ? "-o /dev/null" : string("-o ", stdout))
+
+        commands = map(to_shell,commands) 
 
 		insert!(commands, 1,"cd $basedir") # Always run relative to given directory
 
@@ -157,25 +163,29 @@ module QsubCmds
 		# Create a script
 		open(script,"w") do file
 			write(file,string(R"#PBS ","-S /bin/bash\n"))
-			write(file,map(x -> string(R"#PBS ", x, "\n"), options))
-			write(file,map(x -> string(x,"\n"),map(to_shell,commands)))
+            for x in options
+			    write(file,string(R"#PBS ", x, "\n"))
+            end
+            for x in commands
+			    write(file,string(x,"\n"))
+            end
 		end 
 
 		# Run script and get Job id
 		current_directory=pwd()
 		cd(basedir)
-		output=readstring(`qsub $script`)
+		output=read(`qsub $script`,String)
 		cd(current_directory)
 
 		push!(queue.jobs,Job(chomp(output), script, stderr, stdout))
 		return last(queue.jobs)
     end
 
-	function qsub_gridengine(commands::Array{T,1} ; 
+	function qsub_gridengine(commands::Array{String,1} ; 
 		basedir=pwd(),
 		name=nothing,
-		stderr=nothing,
-		stdout=nothing,
+		stderr="/dev/null",
+		stdout="/dev/null",
 		environment=nothing,
 		vmem_mb=nothing,
 		cpus=nothing, 
@@ -183,7 +193,7 @@ module QsubCmds
         showscript=false,
         depends=Array{Job,1}(),
         appendlog=false,
-        options=Array{String,1}()) where T<:Union{Base.AbstractCmd,String}
+        options=Array{String,1}()) 
 
 		if !appendlog
 			for i in [ stderr stdout ]
@@ -231,7 +241,10 @@ module QsubCmds
 		# Create a script
 		open(script,"w") do file
 			write(file,string(R"#$ ","-S /bin/bash\n"))
-			write(file,map(x -> string(R"#$ ", x, "\n"), options))
+
+            for x in options
+			    write(file,string(R"#$", x, "\n"))
+            end
 			write(file,string(R"#$ ","-t 1-$(length(commands))\n"))
             for i in 1:length(commands)
 			    write(file,string("[ \$SGE_TASK_ID -eq  $i ] && ", to_shell(commands[i]),"\n"))
@@ -241,11 +254,11 @@ module QsubCmds
 		# Run script and get Job id
 		current_directory=pwd()
 		cd(basedir)
-		output=readstring(`qsub $script`)
+		output=read(`qsub $script`,String)
 		cd(current_directory)
 
 		rx=r"Your job-array ([0-9]+).* has been submitted"
-		if ismatch(rx, output)
+		if occursin(rx, output)
 			push!(queue.jobs,Job(match(rx,output)[1], script, stderr, stdout))
 			return last(queue.jobs)
 		else
@@ -254,8 +267,8 @@ module QsubCmds
     end
 
 
-	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
 	# Does this by creating artificial dependencies between jobs 
+	"`qthrottle(bottlenecksize, cmds)` - Qsub an array of commands, so that no more that `bottlenecksize` will be running at any given time" 
 	function qthrottle(bottlenecksize::UInt64, commands::Array ; rest...)
 		warn("qthrottle is deprecated. Use a virtual queue instead")
 		submitted_jobs = []
@@ -282,14 +295,14 @@ module QsubCmds
         cluster_type=detect_cluster_type()
 		try
             if cluster_type == :gridengine
-			    str = readstring(`qstat -j $(job.id)`) 
+			    str = read(`qstat -j $(job.id)`,String) 
 			    re = r"(\S+):\s+(\S+)$"
             elseif cluster_type == :torque
-			    str = readstring(`qstat -f $(job.id)`) 
+			    str = read(`qstat -f $(job.id)`,String) 
 			    re = r"\s+(\S+)\s+=\s+(\S+)$"
             end
-			f(x) = ismatch(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
-			foldl(merge,Dict(),map(f,split(str,"\n")))
+			f(x) = occursin(re,x) ? (m=match(re,x);Dict(m[1]=>m[2])) : Dict()
+			foldl(merge,map(f,split(str,"\n"));init=Dict())
 		catch
 		end
 	end
@@ -304,7 +317,7 @@ module QsubCmds
 
 	"Returns true if `job` is running"
 	isrunning(job::Job) = try 
-		readstring(pipeline(`qstat -j $(job.id)`,stderr=STDOUT))
+		read(pipeline(`qstat -j $(job.id)`,stderr=STDOUT),String)
 		true
 	catch
 		false
@@ -324,7 +337,7 @@ module QsubCmds
 			while true
 				# This return 1 if process does not exists (e.g. if finished)
 				# in which case run throw a ProcessExited(1) exception
-				readstring(pipeline(`qstat -j $(job.id)`,stderr=STDOUT)) 
+				read(pipeline(`qstat -j $(job.id)`,stderr=STDOUT),String) 
 				running = true
 				sleep(backoff+=1)
 			end
