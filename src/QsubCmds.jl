@@ -205,7 +205,7 @@ module QsubCmds
 
 
         if cpus != nothing 
-            if environment != nothing
+            if environment == nothing
                 environment=first(parallel_environments())
             end
             push!(options, "-pe $environment $cpus")  
@@ -243,7 +243,7 @@ module QsubCmds
 			write(file,string(R"#$ ","-S /bin/bash\n"))
 
             for x in options
-			    write(file,string(R"#$", x, "\n"))
+			    write(file,string(R"#$ ", x, "\n"))
             end
 			write(file,string(R"#$ ","-t 1-$(length(commands))\n"))
             for i in 1:length(commands)
