@@ -143,7 +143,6 @@ module QsubCmds
 
         commands = map(to_shell,commands) 
 
-		insert!(commands, 1,"cd $basedir") # Always run relative to given directory
 
 		# Add dependencies from specified queue if queue is full
 		if length(queue.jobs) >= queue.size 
@@ -166,8 +165,11 @@ module QsubCmds
             for x in options
 			    write(file,string(R"#PBS ", x, "\n"))
             end
-            for x in commands
-			    write(file,string(x,"\n"))
+			write(file,string(R"#PBS ","-t 1-$(length(commands))\n"))
+
+		    write(file,"cd $basedir\n") # Always run relative to given directory
+            for i in 1:length(commands)
+			    write(file,string("[ \$PBS_ARRAYID -eq  $i ] && ", to_shell(commands[i]),"\n"))
             end
 		end 
 
