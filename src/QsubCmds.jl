@@ -171,7 +171,7 @@ module QsubCmds
             for i in 1:length(commands)
 			    write(file,string("([ \$PBS_ARRAYID -eq  $i ] && ", to_shell(commands[i]),") ||"))
             end
-            write("echo done\n")
+            write(file,"true\n")
 		end 
 
 		# Run script and get Job id
