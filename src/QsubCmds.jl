@@ -169,8 +169,9 @@ module QsubCmds
 
 		    write(file,"cd $basedir\n") # Always run relative to given directory
             for i in 1:length(commands)
-			    write(file,string("[ \$PBS_ARRAYID -eq  $i ] && ", to_shell(commands[i]),"\n"))
+			    write(file,string("([ \$PBS_ARRAYID -eq  $i ] && ", to_shell(commands[i]),") ||"))
             end
+            write("echo done\n")
 		end 
 
 		# Run script and get Job id
